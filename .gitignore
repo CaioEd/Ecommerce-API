@@ -1,0 +1,19 @@
+# Variáveis de ambiente
+.env
+
+# Binários compilados
+/bin/
+*.exe
+*.out
+ecommerce-api
+
+# Cache de testes e cobertura
+*.test
+coverage.out
+
+# IDEs
+.idea/
+.vscode/
+
+# Sistema
+.DS_Store

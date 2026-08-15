@@ -1,0 +1,28 @@
+name: ecommerce
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: ecommerce-postgres
+    restart: unless-stopped
+    # As credenciais vêm do .env — o mesmo arquivo lido pela aplicação,
+    # então banco e API nunca saem de sincronia.
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-ecommerce}
+      TZ: ${TZ:-America/Sao_Paulo}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-ecommerce}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  pgdata:
+    name: ecommerce-pgdata
