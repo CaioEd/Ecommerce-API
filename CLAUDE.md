@@ -13,7 +13,14 @@ go vet ./...              # static checks
 gofmt -l .                # list unformatted files
 ```
 
-Tests: none exist yet. When added, `go test ./...`, a single package with `go test ./internal/service`, and a single test with `go test -run TestName ./internal/service`.
+```bash
+make test                                  # all unit tests
+make test-one T=TestName PKG=./internal/service   # filter by regex; T also matches subtests
+make cover                                 # per-function coverage
+make test-api                              # Postman collection via Newman (needs the API running)
+```
+
+Unit tests cover `internal/service` and `internal/handler`, each with a hand-written double of the layer below defined in the test file itself (`fakeUserRepository`, `fakeUserService`) — no mocking library. Both doubles carry a compile-time `var _ Interface = (*fake)(nil)` assertion, so changing a layer's interface breaks its tests loudly. `internal/repository` has no unit tests by design: it is thin GORM calls, and the Postman collection in `postman/` covers that path end to end.
 
 A running PostgreSQL instance is required to start the app — `database.Connect` fails fast and `main` calls `log.Fatalf`.
 

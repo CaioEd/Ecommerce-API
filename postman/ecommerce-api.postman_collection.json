@@ -1,0 +1,721 @@
+{
+	"info": {
+		"_postman_id": "8f3c1d9a-4b62-4f11-9c7e-2a5d6e8b1c40",
+		"name": "Ecommerce API",
+		"description": "Collection de testes da Ecommerce API (Go + Gin + GORM).\n\nA API precisa estar no ar: `make db-up && make run`.\n\nAs requisições são feitas para serem executadas **na ordem** pelo Collection Runner: a criação guarda o `userId` e o `userEmail` em variáveis de collection, os cenários de erro reaproveitam esses valores e a limpeza remove os usuários no final. Rodar a collection inteira é idempotente — cada execução gera e-mails únicos.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:8080",
+			"type": "string"
+		},
+		{
+			"key": "userId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "userEmail",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "defaultRoleUserId",
+			"value": "",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "Health",
+			"item": [
+				{
+					"name": "Healthcheck",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('responde status ok', function () {",
+									"    pm.expect(pm.response.json().status).to.eql('ok');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/health",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"health"
+							]
+						},
+						"description": "Fica fora do grupo versionado `/api/v1`."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Usuários",
+			"item": [
+				{
+					"name": "Criar usuário",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// E-mail único por execução para a collection poder rodar quantas vezes quiser.",
+									"pm.collectionVariables.set('userEmail', 'teste+' + Date.now() + '@example.com');"
+								]
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status 201', function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"const body = pm.response.json();",
+									"pm.collectionVariables.set('userId', body.id);",
+									"",
+									"pm.test('devolve o id gerado', function () {",
+									"    pm.expect(body.id).to.be.a('number');",
+									"});",
+									"",
+									"pm.test('não expõe o hash da senha', function () {",
+									"    pm.expect(body).to.not.have.property('password');",
+									"});",
+									"",
+									"pm.test('devolve os campos do UserResponse', function () {",
+									"    pm.expect(body).to.have.all.keys('id', 'name', 'email', 'role', 'created_at', 'updated_at');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Caio Silva\",\n    \"email\": \"{{userEmail}}\",\n    \"password\": \"senha123\",\n    \"role\": \"customer\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/users",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"users"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Criar usuário sem role (default)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status 201', function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"const body = pm.response.json();",
+									"pm.collectionVariables.set('defaultRoleUserId', body.id);",
+									"",
+									"pm.test('assume a role customer quando omitida', function () {",
+									"    pm.expect(body.role).to.eql('customer');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Sem Role\",\n    \"email\": \"sem-role+{{$timestamp}}@example.com\",\n    \"password\": \"senha123\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/users",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"users"
+							]
+						},
+						"description": "O `role` é opcional; o service aplica `customer` como padrão."
+					},
+					"response": []
+				},
+				{
+					"name": "Listar usuários",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const body = pm.response.json();",
+									"",
+									"pm.test('devolve uma lista', function () {",
+									"    pm.expect(body).to.be.an('array');",
+									"});",
+									"",
+									"pm.test('contém o usuário criado', function () {",
+									"    const ids = body.map(function (u) { return u.id; });",
+									"    pm.expect(ids).to.include(Number(pm.collectionVariables.get('userId')));",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/users",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"users"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Buscar usuário por ID",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const body = pm.response.json();",
+									"",
+									"pm.test('devolve o usuário pedido', function () {",
+									"    pm.expect(body.id).to.eql(Number(pm.collectionVariables.get('userId')));",
+									"    pm.expect(body.email).to.eql(pm.collectionVariables.get('userEmail'));",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/users/{{userId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"users",
+								"{{userId}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Atualizar usuário",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const body = pm.response.json();",
+									"",
+									"pm.test('aplica os campos enviados', function () {",
+									"    pm.expect(body.name).to.eql('Caio Silva Atualizado');",
+									"    pm.expect(body.role).to.eql('admin');",
+									"});",
+									"",
+									"pm.test('preserva o e-mail não enviado', function () {",
+									"    pm.expect(body.email).to.eql(pm.collectionVariables.get('userEmail'));",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Caio Silva Atualizado\",\n    \"role\": \"admin\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/users/{{userId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"users",
+								"{{userId}}"
+							]
+						},
+						"description": "Atualização parcial: os campos ausentes no payload ficam intactos, porque o `UpdateUserRequest` usa ponteiros."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Cenários de erro",
+			"item": [
+				{
+					"name": "Criar com e-mail duplicado (409)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status 409', function () {",
+									"    pm.response.to.have.status(409);",
+									"});",
+									"",
+									"pm.test('informa o conflito de e-mail', function () {",
+									"    pm.expect(pm.response.json().error).to.include('mail');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Outro Usuário\",\n    \"email\": \"{{userEmail}}\",\n    \"password\": \"senha123\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/users",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"users"
+							]
+						},
+						"description": "Reusa o e-mail criado no grupo anterior. A unicidade é validada no service, antes de chegar no índice único do banco."
+					},
+					"response": []
+				},
+				{
+					"name": "Criar com payload inválido (400)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status 400', function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test('devolve o erro de validação', function () {",
+									"    pm.expect(pm.response.json()).to.have.property('error');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"A\",\n    \"email\": \"nao-e-um-email\",\n    \"password\": \"123\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/users",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"users"
+							]
+						},
+						"description": "Viola três regras de binding de uma vez: `min=2` no nome, formato de e-mail e `min=6` na senha."
+					},
+					"response": []
+				},
+				{
+					"name": "Criar com role inválida (400)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status 400', function () {",
+									"    pm.response.to.have.status(400);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Role Invalida\",\n    \"email\": \"role-invalida+{{$timestamp}}@example.com\",\n    \"password\": \"senha123\",\n    \"role\": \"superadmin\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/users",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"users"
+							]
+						},
+						"description": "O binding aceita apenas `customer` ou `admin` (`oneof`)."
+					},
+					"response": []
+				},
+				{
+					"name": "Buscar ID inexistente (404)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status 404', function () {",
+									"    pm.response.to.have.status(404);",
+									"});",
+									"",
+									"pm.test('devolve a mensagem de não encontrado', function () {",
+									"    pm.expect(pm.response.json().error).to.include('não encontrado');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/users/999999999",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"users",
+								"999999999"
+							]
+						},
+						"description": "O repository traduz `gorm.ErrRecordNotFound` em `ErrUserNotFound`, e só o handler o converte em 404."
+					},
+					"response": []
+				},
+				{
+					"name": "Buscar ID inválido (400)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status 400', function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test('reclama do id', function () {",
+									"    pm.expect(pm.response.json().error).to.eql('id inválido');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/users/abc",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"users",
+								"abc"
+							]
+						},
+						"description": "O `parseID` falha antes de qualquer acesso ao banco."
+					},
+					"response": []
+				},
+				{
+					"name": "Remover ID inexistente (404)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status 404', function () {",
+									"    pm.response.to.have.status(404);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/users/999999999",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"users",
+								"999999999"
+							]
+						},
+						"description": "O repository usa `RowsAffected == 0` para diferenciar \"não existia\" de \"removido\"."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Limpeza",
+			"item": [
+				{
+					"name": "Remover usuário",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status 204', function () {",
+									"    pm.response.to.have.status(204);",
+									"});",
+									"",
+									"pm.test('não devolve corpo', function () {",
+									"    pm.expect(pm.response.text()).to.be.empty;",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/users/{{userId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"users",
+								"{{userId}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Remover usuário sem role",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status 204', function () {",
+									"    pm.response.to.have.status(204);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/users/{{defaultRoleUserId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"users",
+								"{{defaultRoleUserId}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Buscar usuário removido (404)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('status 404', function () {",
+									"    pm.response.to.have.status(404);",
+									"});",
+									"",
+									"pm.test('o soft delete some das consultas', function () {",
+									"    pm.expect(pm.response.json().error).to.include('não encontrado');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/users/{{userId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"users",
+								"{{userId}}"
+							]
+						},
+						"description": "O registro continua na tabela com `deleted_at` preenchido, mas o GORM o exclui das consultas."
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}
